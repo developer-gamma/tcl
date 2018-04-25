@@ -218,6 +218,7 @@ COREOBJS = \
 	$(TMP_DIR)\tclPosixStr.obj \
 	$(TMP_DIR)\tclPreserve.obj \
 	$(TMP_DIR)\tclProc.obj \
+	$(TMP_DIR)\tclProcess.obj \
 	$(TMP_DIR)\tclRegexp.obj \
 	$(TMP_DIR)\tclResolve.obj \
 	$(TMP_DIR)\tclResult.obj \
@@ -274,6 +275,10 @@ TOMMATHOBJS = \
 	$(TMP_DIR)\bn_mp_div_3.obj \
 	$(TMP_DIR)\bn_mp_exch.obj \
 	$(TMP_DIR)\bn_mp_expt_d.obj \
+	$(TMP_DIR)\bn_mp_expt_d_ex.obj \
+	$(TMP_DIR)\bn_mp_get_int.obj \
+	$(TMP_DIR)\bn_mp_get_long.obj \
+	$(TMP_DIR)\bn_mp_get_long_long.obj \
 	$(TMP_DIR)\bn_mp_grow.obj \
 	$(TMP_DIR)\bn_mp_init.obj \
 	$(TMP_DIR)\bn_mp_init_copy.obj \
@@ -298,6 +303,8 @@ TOMMATHOBJS = \
 	$(TMP_DIR)\bn_mp_rshd.obj \
 	$(TMP_DIR)\bn_mp_set.obj \
 	$(TMP_DIR)\bn_mp_set_int.obj \
+	$(TMP_DIR)\bn_mp_set_long.obj \
+	$(TMP_DIR)\bn_mp_set_long_long.obj \
 	$(TMP_DIR)\bn_mp_shrink.obj \
 	$(TMP_DIR)\bn_mp_sqr.obj \
 	$(TMP_DIR)\bn_mp_sqrt.obj \
@@ -854,9 +861,6 @@ install-libraries: tclConfig tcl-nmake install-msgs install-tzdata
 	@$(CPY) "$(WINDIR)\targets.vc"              "$(LIB_INSTALL_DIR)\nmake\"
 	@$(CPY) "$(WINDIR)\nmakehlp.c"            "$(LIB_INSTALL_DIR)\nmake\"
 	@$(CPY) "$(OUT_DIR)\tcl.nmake"            "$(LIB_INSTALL_DIR)\nmake\"
-	@echo Installing library http1.0 directory
-	@$(CPY) "$(ROOT)\library\http1.0\*.tcl" \
-	    "$(SCRIPT_INSTALL_DIR)\http1.0\"
 	@echo Installing library opt0.4 directory
 	@$(CPY) "$(ROOT)\library\opt\*.tcl" \
 	    "$(SCRIPT_INSTALL_DIR)\opt0.4\"
@@ -865,7 +869,7 @@ install-libraries: tclConfig tcl-nmake install-msgs install-tzdata
 	    "$(SCRIPT_INSTALL_DIR)\..\tcl8\8.6\http-$(PKG_HTTP_VER).tm"
 	@echo Installing package msgcat $(PKG_MSGCAT_VER) as a Tcl Module
 	@$(COPY) "$(ROOT)\library\msgcat\msgcat.tcl" \
-	    "$(SCRIPT_INSTALL_DIR)\..\tcl8\8.5\msgcat-$(PKG_MSGCAT_VER).tm"
+	    "$(SCRIPT_INSTALL_DIR)\..\tcl8\8.7\msgcat-$(PKG_MSGCAT_VER).tm"
 	@echo Installing package tcltest $(PKG_TCLTEST_VER) as a Tcl Module
 	@$(COPY) "$(ROOT)\library\tcltest\tcltest.tcl" \
 	    "$(SCRIPT_INSTALL_DIR)\..\tcl8\8.5\tcltest-$(PKG_TCLTEST_VER).tm"

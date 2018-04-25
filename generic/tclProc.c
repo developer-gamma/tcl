@@ -319,7 +319,7 @@ Tcl_ProcObjCmd(
 	 * The argument list is just "args"; check the body
 	 */
 
-	procBody = Tcl_GetStringFromObj(objv[3], &numBytes);
+	procBody = TclGetStringFromObj(objv[3], &numBytes);
 	if (TclParseAllWhiteSpace(procBody, numBytes) < numBytes) {
 	    goto done;
 	}
@@ -474,7 +474,8 @@ TclCreateProc(
     }
 
     for (i = 0; i < numArgs; i++) {
-	int fieldCount, nameLength, valueLength;
+	int fieldCount, nameLength;
+	size_t valueLength;
 	Tcl_Obj **fieldValues;
 
 	/*
@@ -572,9 +573,8 @@ TclCreateProc(
 	     */
 
 	    if (localPtr->defValuePtr != NULL) {
-		int tmpLength;
-		const char *tmpPtr = TclGetStringFromObj(localPtr->defValuePtr,
-			&tmpLength);
+		const char *tmpPtr = TclGetString(localPtr->defValuePtr);
+		size_t tmpLength = localPtr->defValuePtr->length;
 
 		if ((valueLength != tmpLength) ||
 			Tcl_UtfNcmp(Tcl_GetString(fieldValues[1]), tmpPtr, tmpLength)) {
@@ -790,7 +790,7 @@ TclObjGetFrame(
 	level = curLevel - level;
 	result = 1;
     } else if (objPtr->typePtr == &levelReferenceType) {
-	level = (int) objPtr->internalRep.longValue;
+	level = (int) objPtr->internalRep.wideValue;
 	result = 1;
     } else {
 	name = TclGetString(objPtr);
@@ -798,7 +798,7 @@ TclObjGetFrame(
 	    if (TCL_OK == Tcl_GetInt(NULL, name+1, &level) && level >= 0) {
 		TclFreeIntRep(objPtr);
 		objPtr->typePtr = &levelReferenceType;
-		objPtr->internalRep.longValue = level;
+		objPtr->internalRep.wideValue = level;
 		result = 1;
 	    } else {
 		result = -1;
@@ -2047,7 +2047,7 @@ MakeProcError(
 				 * messages and trace information. */
 {
     int overflow, limit = 60, nameLen;
-    const char *procName = Tcl_GetStringFromObj(procNameObj, &nameLen);
+    const char *procName = TclGetStringFromObj(procNameObj, &nameLen);
 
     overflow = (nameLen > limit);
     Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(
@@ -2380,7 +2380,7 @@ FreeLambdaInternalRep(
     Proc *procPtr = objPtr->internalRep.twoPtrValue.ptr1;
     Tcl_Obj *nsObjPtr = objPtr->internalRep.twoPtrValue.ptr2;
 
-    if (procPtr->refCount-- == 1) {
+    if (procPtr->refCount-- <= 1) {
 	TclProcCleanupProc(procPtr);
     }
     TclDecrRefCount(nsObjPtr);
@@ -2618,30 +2618,6 @@ TclNRApplyObjCmd(
 	procPtr = lambdaPtr->internalRep.twoPtrValue.ptr1;
     }
 
-#define JOE_EXTENSION 0
-/*
- * Note: this code is NOT FUNCTIONAL due to the NR implementation; DO NOT
- * ENABLE! Leaving here as reminder to (a) TIP the suggestion, and (b) adapt
- * the code. (MS)
- */
-
-#if JOE_EXTENSION
-    else {
-	/*
-	 * Joe English's suggestion to allow cmdNames to function as lambdas.
-	 */
-
-	Tcl_Obj *elemPtr;
-	int numElem;
-
-	if ((lambdaPtr->typePtr == &tclCmdNameType) ||
-		(TclListObjGetElements(interp, lambdaPtr, &numElem,
-		&elemPtr) == TCL_OK && numElem == 1)) {
-	    return Tcl_EvalObjv(interp, objc-1, objv+1, 0);
-	}
-    }
-#endif
-
     if ((procPtr == NULL) || (procPtr->iPtr != iPtr)) {
 	result = SetLambdaFromAny(interp, lambdaPtr);
 	if (result != TCL_OK) {
@@ -2728,7 +2704,7 @@ MakeLambdaError(
 				 * messages and trace information. */
 {
     int overflow, limit = 60, nameLen;
-    const char *procName = Tcl_GetStringFromObj(procNameObj, &nameLen);
+    const char *procName = TclGetStringFromObj(procNameObj, &nameLen);
 
     overflow = (nameLen > limit);
     Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(

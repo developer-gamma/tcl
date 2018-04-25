@@ -260,7 +260,7 @@ TclCompileStringCatCmd(
 	    Tcl_DecrRefCount(obj);
 	    if (folded) {
 		int len;
-		const char *bytes = Tcl_GetStringFromObj(folded, &len);
+		const char *bytes = TclGetStringFromObj(folded, &len);
 
 		PushLiteral(envPtr, bytes, len);
 		Tcl_DecrRefCount(folded);
@@ -278,7 +278,7 @@ TclCompileStringCatCmd(
     }
     if (folded) {
 	int len;
-	const char *bytes = Tcl_GetStringFromObj(folded, &len);
+	const char *bytes = TclGetStringFromObj(folded, &len);
 
 	PushLiteral(envPtr, bytes, len);
 	Tcl_DecrRefCount(folded);
@@ -896,12 +896,12 @@ TclCompileStringMapCmd(
      * correct semantics for mapping.
      */
 
-    bytes = Tcl_GetStringFromObj(objv[0], &len);
+    bytes = TclGetStringFromObj(objv[0], &len);
     if (len == 0) {
 	CompileWord(envPtr, stringTokenPtr, interp, 2);
     } else {
 	PushLiteral(envPtr, bytes, len);
-	bytes = Tcl_GetStringFromObj(objv[1], &len);
+	bytes = TclGetStringFromObj(objv[1], &len);
 	PushLiteral(envPtr, bytes, len);
 	CompileWord(envPtr, stringTokenPtr, interp, 2);
 	OP(STR_MAP);
@@ -1502,8 +1502,8 @@ TclSubstCompile(
 
 	switch (tokenPtr->type) {
 	case TCL_TOKEN_TEXT:
-	    literal = TclRegisterNewLiteral(envPtr,
-		    tokenPtr->start, tokenPtr->size);
+	    literal = TclRegisterLiteral(envPtr,
+		    tokenPtr->start, tokenPtr->size, 0);
 	    TclEmitPush(literal, envPtr);
 	    TclAdvanceLines(&bline, tokenPtr->start,
 		    tokenPtr->start + tokenPtr->size);
@@ -1512,7 +1512,7 @@ TclSubstCompile(
 	case TCL_TOKEN_BS:
 	    length = TclParseBackslash(tokenPtr->start, tokenPtr->size,
 		    NULL, buf);
-	    literal = TclRegisterNewLiteral(envPtr, buf, length);
+	    literal = TclRegisterLiteral(envPtr, buf, length, 0);
 	    TclEmitPush(literal, envPtr);
 	    count++;
 	    continue;
@@ -1948,10 +1948,10 @@ TclCompileSwitchCmd(
 	}
 	if (numWords % 2) {
 	abort:
-	    ckfree((char *) bodyToken);
-	    ckfree((char *) bodyTokenArray);
-	    ckfree((char *) bodyLines);
-	    ckfree((char *) bodyContLines);
+	    ckfree(bodyToken);
+	    ckfree(bodyTokenArray);
+	    ckfree(bodyLines);
+	    ckfree(bodyContLines);
 	    return TCL_ERROR;
 	}
     } else if (numWords % 2 || numWords == 0) {
@@ -2871,7 +2871,7 @@ TclCompileTryCmd(
 	    }
 	    if (objc > 0) {
 		int len;
-		const char *varname = Tcl_GetStringFromObj(objv[0], &len);
+		const char *varname = TclGetStringFromObj(objv[0], &len);
 
 		resultVarIndices[i] = LocalScalar(varname, len, envPtr);
 		if (resultVarIndices[i] < 0) {
@@ -2883,7 +2883,7 @@ TclCompileTryCmd(
 	    }
 	    if (objc == 2) {
 		int len;
-		const char *varname = Tcl_GetStringFromObj(objv[1], &len);
+		const char *varname = TclGetStringFromObj(objv[1], &len);
 
 		optionVarIndices[i] = LocalScalar(varname, len, envPtr);
 		if (optionVarIndices[i] < 0) {
@@ -3086,7 +3086,7 @@ IssueTryClausesInstructions(
 	    OP4(			DICT_GET, 1);
 	    TclAdjustStackDepth(-1, envPtr);
 	    OP44(			LIST_RANGE_IMM, 0, len-1);
-	    p = Tcl_GetStringFromObj(matchClauses[i], &len);
+	    p = TclGetStringFromObj(matchClauses[i], &len);
 	    PushLiteral(envPtr, p, len);
 	    OP(				STR_EQ);
 	    JUMP4(			JUMP_FALSE, notECJumpSource);
@@ -3297,7 +3297,7 @@ IssueTryClausesFinallyInstructions(
 	    OP4(			DICT_GET, 1);
 	    TclAdjustStackDepth(-1, envPtr);
 	    OP44(			LIST_RANGE_IMM, 0, len-1);
-	    p = Tcl_GetStringFromObj(matchClauses[i], &len);
+	    p = TclGetStringFromObj(matchClauses[i], &len);
 	    PushLiteral(envPtr, p, len);
 	    OP(				STR_EQ);
 	    JUMP4(			JUMP_FALSE, notECJumpSource);
@@ -3625,7 +3625,7 @@ TclCompileUnsetCmd(
 	    const char *bytes;
 	    int len;
 
-	    bytes = Tcl_GetStringFromObj(leadingWord, &len);
+	    bytes = TclGetStringFromObj(leadingWord, &len);
 	    if (i == 1 && len == 11 && !strncmp("-nocomplain", bytes, 11)) {
 		flags = 0;
 		haveFlags++;

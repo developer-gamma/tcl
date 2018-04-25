@@ -31,6 +31,7 @@
 #undef Tcl_NewIntObj
 #undef Tcl_NewListObj
 #undef Tcl_NewLongObj
+#undef Tcl_DbNewLongObj
 #undef Tcl_NewObj
 #undef Tcl_NewStringObj
 #undef Tcl_DumpActiveMemory
@@ -41,15 +42,16 @@
 #undef Tcl_FindExecutable
 #undef TclpGetPid
 #undef TclSockMinimumBuffers
-#define TclBackgroundException Tcl_BackgroundException
 #undef Tcl_SetIntObj
+#undef Tcl_SetLongObj
 #undef TclpInetNtoa
 #undef TclWinGetServByName
 #undef TclWinGetSockOpt
 #undef TclWinSetSockOpt
+#undef TclWinNToHS
 
 /* See bug 510001: TclSockMinimumBuffers needs plat imp */
-#ifdef _WIN64
+#if defined(_WIN64) || defined(TCL_NO_DEPRECATED) || TCL_MAJOR_VERSION > 8
 #   define TclSockMinimumBuffersOld 0
 #else
 #define TclSockMinimumBuffersOld sockMinimumBuffersOld
@@ -59,6 +61,32 @@ static int TclSockMinimumBuffersOld(int sock, int size)
 }
 #endif
 
+#if defined(TCL_NO_DEPRECATED) || TCL_MAJOR_VERSION > 8
+#   define TclSetStartupScriptPath 0
+#   define TclGetStartupScriptPath 0
+#   define TclSetStartupScriptFileName 0
+#   define TclGetStartupScriptFileName 0
+#   define TclPrecTraceProc 0
+#   define TclpInetNtoa 0
+#   define TclWinGetServByName 0
+#   define TclWinGetSockOpt 0
+#   define TclWinSetSockOpt 0
+#   define TclWinNToHS 0
+#   define TclWinGetPlatformId 0
+#   define TclWinResetInterfaces 0
+#   define TclWinSetInterfaces 0
+#   define TclWinGetPlatformId 0
+#   define TclBNInitBignumFromWideUInt 0
+#   define TclBNInitBignumFromWideInt 0
+#   define TclBNInitBignumFromLong 0
+#   define Tcl_Backslash 0
+#   define Tcl_GetDefaultEncodingDir 0
+#   define Tcl_SetDefaultEncodingDir 0
+#   define Tcl_EvalTokens 0
+#   define Tcl_CreateMathFunc 0
+#   define Tcl_GetMathFuncInfo 0
+#   define Tcl_ListMathFuncs 0
+#else
 #define TclSetStartupScriptPath setStartupScriptPath
 static void TclSetStartupScriptPath(Tcl_Obj *path)
 {
@@ -84,14 +112,33 @@ static const char *TclGetStartupScriptFileName(void)
     }
     return Tcl_GetString(path);
 }
-
 #if defined(_WIN32) || defined(__CYGWIN__)
 #undef TclWinNToHS
+#undef TclWinGetPlatformId
+#undef TclWinResetInterfaces
+#undef TclWinSetInterfaces
+static void
+doNothing(void)
+{
+    /* dummy implementation, no need to do anything */
+}
 #define TclWinNToHS winNToHS
 static unsigned short TclWinNToHS(unsigned short ns) {
 	return ntohs(ns);
 }
+#define TclWinGetPlatformId winGetPlatformId
+static int
+TclWinGetPlatformId(void)
+{
+    return 2; /* VER_PLATFORM_WIN32_NT */;
+}
+#define TclWinResetInterfaces doNothing
+#define TclWinSetInterfaces (void (*) (int)) doNothing
 #endif
+#   define TclBNInitBignumFromWideUInt TclInitBignumFromWideUInt
+#   define TclBNInitBignumFromWideInt TclInitBignumFromWideInt
+#   define TclBNInitBignumFromLong TclInitBignumFromLong
+#endif /* TCL_NO_DEPRECATED */
 
 #ifdef _WIN32
 #   define TclUnixWaitForFile 0
@@ -101,28 +148,20 @@ static unsigned short TclWinNToHS(unsigned short ns) {
 #   define TclpIsAtty 0
 #elif defined(__CYGWIN__)
 #   define TclpIsAtty TclPlatIsAtty
-#   define TclWinSetInterfaces (void (*) (int)) doNothing
+#if defined(TCL_NO_DEPRECATED) || TCL_MAJOR_VERSION > 8
+static void
+doNothing(void)
+{
+    /* dummy implementation, no need to do anything */
+}
+#endif
 #   define TclWinAddProcess (void (*) (void *, unsigned int)) doNothing
 #   define TclWinFlushDirtyChannels doNothing
-#   define TclWinResetInterfaces doNothing
-
-#if TCL_UTF_MAX < 4
-static Tcl_Encoding winTCharEncoding;
-#endif
 
 static int
 TclpIsAtty(int fd)
 {
     return isatty(fd);
-}
-
-#define TclWinGetPlatformId winGetPlatformId
-static int
-TclWinGetPlatformId()
-{
-    /* Don't bother to determine the real platform on cygwin,
-     * because VER_PLATFORM_WIN32_NT is the only supported platform */
-    return 2; /* VER_PLATFORM_WIN32_NT */;
 }
 
 void *TclWinGetTclInstance()
@@ -133,6 +172,7 @@ void *TclWinGetTclInstance()
     return hInstance;
 }
 
+#if !defined(TCL_NO_DEPRECATED) && TCL_MAJOR_VERSION < 9
 #define TclWinSetSockOpt winSetSockOpt
 static int
 TclWinSetSockOpt(SOCKET s, int level, int optname,
@@ -155,6 +195,7 @@ TclWinGetServByName(const char *name, const char *proto)
 {
     return getservbyname(name, proto);
 }
+#endif /* TCL_NO_DEPRECATED */
 
 #define TclWinNoBackslash winNoBackslash
 static char *
@@ -176,19 +217,12 @@ TclpGetPid(Tcl_Pid pid)
     return (int) (size_t) pid;
 }
 
-static void
-doNothing(void)
-{
-    /* dummy implementation, no need to do anything */
-}
-
 char *
 Tcl_WinUtfToTChar(
     const char *string,
     int len,
     Tcl_DString *dsPtr)
 {
-#if TCL_UTF_MAX > 3
     WCHAR *wp;
     int size = MultiByteToWideChar(CP_UTF8, 0, string, len, 0, 0);
 
@@ -200,13 +234,6 @@ Tcl_WinUtfToTChar(
     Tcl_DStringSetLength(dsPtr, 2*size);
     wp[size] = 0;
     return (char *)wp;
-#else
-    if (!winTCharEncoding) {
-	winTCharEncoding = Tcl_GetEncoding(0, "unicode");
-    }
-    return Tcl_UtfToExternalDString(winTCharEncoding,
-	    string, len, dsPtr);
-#endif
 }
 
 char *
@@ -215,7 +242,6 @@ Tcl_WinTCharToUtf(
     int len,
     Tcl_DString *dsPtr)
 {
-#if TCL_UTF_MAX > 3
     char *p;
     int size;
 
@@ -231,13 +257,6 @@ Tcl_WinTCharToUtf(
     Tcl_DStringSetLength(dsPtr, size);
     p[size] = 0;
     return p;
-#else
-    if (!winTCharEncoding) {
-	winTCharEncoding = Tcl_GetEncoding(0, "unicode");
-    }
-    return Tcl_ExternalToUtfDString(winTCharEncoding,
-	    string, len, dsPtr);
-#endif
 }
 
 #if defined(TCL_WIDE_INT_IS_LONG)
@@ -246,28 +265,6 @@ Tcl_WinTCharToUtf(
  * signature. Tcl 9 must find a better solution, but that cannot be done
  * without introducing a binary incompatibility.
  */
-#define Tcl_DbNewLongObj ((Tcl_Obj*(*)(long,const char*,int))dbNewLongObj)
-static Tcl_Obj *dbNewLongObj(
-    int intValue,
-    const char *file,
-    int line
-) {
-#ifdef TCL_MEM_DEBUG
-    register Tcl_Obj *objPtr;
-
-    TclDbNewObj(objPtr, file, line);
-    objPtr->bytes = NULL;
-
-    objPtr->internalRep.longValue = (long) intValue;
-    objPtr->typePtr = &tclIntType;
-    return objPtr;
-#else
-    return Tcl_NewIntObj(intValue);
-#endif
-}
-#define Tcl_GetLongFromObj (int(*)(Tcl_Interp*,Tcl_Obj*,long*))Tcl_GetIntFromObj
-#define Tcl_NewLongObj (Tcl_Obj*(*)(long))Tcl_NewIntObj
-#define Tcl_SetLongObj (void(*)(Tcl_Obj*,long))Tcl_SetIntObj
 static int exprInt(Tcl_Interp *interp, const char *expr, int *ptr){
     long longValue;
     int result = Tcl_ExprLong(interp, expr, &longValue);
@@ -316,17 +313,137 @@ static int uniCharNcasecmp(const Tcl_UniChar *ucs, const Tcl_UniChar *uct, unsig
    return Tcl_UniCharNcasecmp(ucs, uct, (unsigned long)n);
 }
 #define Tcl_UniCharNcasecmp (int(*)(const Tcl_UniChar*,const Tcl_UniChar*,unsigned long))uniCharNcasecmp
-static int formatInt(char *buffer, int n){
-   return TclFormatInt(buffer, (long)n);
-}
-#define TclFormatInt (int(*)(char *, long))formatInt
 
-#endif
+#endif /* TCL_WIDE_INT_IS_LONG */
 
-#else /* UNIX and MAC */
+#endif /* __CYGWIN__ */
+
+#if defined(TCL_NO_DEPRECATED)
+#   define Tcl_SeekOld 0
+#   define Tcl_TellOld 0
+#   undef Tcl_SetBooleanObj
+#   define Tcl_SetBooleanObj 0
+#   undef Tcl_PkgPresent
+#   define Tcl_PkgPresent 0
+#   undef Tcl_PkgProvide
+#   define Tcl_PkgProvide 0
+#   undef Tcl_PkgRequire
+#   define Tcl_PkgRequire 0
+#   undef Tcl_GetIndexFromObj
+#   define Tcl_GetIndexFromObj 0
+#   define Tcl_NewBooleanObj 0
+#   undef Tcl_DbNewBooleanObj
+#   define Tcl_DbNewBooleanObj 0
+#   undef Tcl_SetBooleanObj
+#   define Tcl_SetBooleanObj 0
+#   undef Tcl_SetVar
+#   define Tcl_SetVar 0
+#   undef Tcl_UnsetVar
+#   define Tcl_UnsetVar 0
+#   undef Tcl_GetVar
+#   define Tcl_GetVar 0
+#   undef Tcl_TraceVar
+#   define Tcl_TraceVar 0
+#   undef Tcl_UntraceVar
+#   define Tcl_UntraceVar 0
+#   undef Tcl_VarTraceInfo
+#   define Tcl_VarTraceInfo 0
+#   undef Tcl_UpVar
+#   define Tcl_UpVar 0
+#   undef Tcl_AddErrorInfo
+#   define Tcl_AddErrorInfo 0
+#   undef Tcl_AddObjErrorInfo
+#   define Tcl_AddObjErrorInfo 0
+#   undef Tcl_Eval
+#   define Tcl_Eval 0
+#   undef Tcl_GlobalEval
+#   define Tcl_GlobalEval 0
+#   undef Tcl_SaveResult
+#   define Tcl_SaveResult 0
+#   undef Tcl_RestoreResult
+#   define Tcl_RestoreResult 0
+#   undef Tcl_DiscardResult
+#   define Tcl_DiscardResult 0
+#   undef Tcl_SetResult
+#   define Tcl_SetResult 0
+#   undef Tcl_EvalObj
+#   define Tcl_EvalObj 0
+#   undef Tcl_GlobalEvalObj
+#   define Tcl_GlobalEvalObj 0
+#   define TclBackgroundException 0
+#   undef TclpReaddir
+#   define TclpReaddir 0
+#   define TclSetStartupScript 0
+#   define TclGetStartupScript 0
+#   define TclCreateNamespace 0
+#   define TclDeleteNamespace 0
+#   define TclAppendExportList 0
+#   define TclExport 0
+#   define TclImport 0
+#   define TclForgetImport 0
+#   define TclGetCurrentNamespace_ 0
+#   define TclGetGlobalNamespace_ 0
+#   define TclFindNamespace 0
+#   define TclFindCommand 0
+#   define TclGetCommandFromObj 0
+#   define TclGetCommandFullName 0
+#   define TclCopyChannelOld 0
+#   define Tcl_AppendResultVA 0
+#   define Tcl_AppendStringsToObjVA 0
+#   define Tcl_SetErrorCodeVA 0
+#   define Tcl_PanicVA 0
+#   define Tcl_VarEvalVA 0
+#   undef TclpGetDate
+#   define TclpGetDate 0
+#   undef TclpLocaltime
+#   define TclpLocaltime 0
+#   undef TclpGmtime
+#   define TclpGmtime 0
+#   define TclpLocaltime_unix 0
+#   define TclpGmtime_unix 0
+#else /* TCL_NO_DEPRECATED */
+#   define Tcl_SeekOld seekOld
+#   define Tcl_TellOld tellOld
+#   define TclBackgroundException Tcl_BackgroundException
+#   define TclSetStartupScript Tcl_SetStartupScript
+#   define TclGetStartupScript Tcl_GetStartupScript
+#   define TclCreateNamespace Tcl_CreateNamespace
+#   define TclDeleteNamespace Tcl_DeleteNamespace
+#   define TclAppendExportList Tcl_AppendExportList
+#   define TclExport Tcl_Export
+#   define TclImport Tcl_Import
+#   define TclForgetImport Tcl_ForgetImport
+#   define TclGetCurrentNamespace_ Tcl_GetCurrentNamespace
+#   define TclGetGlobalNamespace_ Tcl_GetGlobalNamespace
+#   define TclFindNamespace Tcl_FindNamespace
+#   define TclFindCommand Tcl_FindCommand
+#   define TclGetCommandFromObj Tcl_GetCommandFromObj
+#   define TclGetCommandFullName Tcl_GetCommandFullName
 #   define TclpLocaltime_unix TclpLocaltime
 #   define TclpGmtime_unix TclpGmtime
-#endif
+
+static int
+seekOld(
+    Tcl_Channel chan,		/* The channel on which to seek. */
+    int offset,			/* Offset to seek to. */
+    int mode)			/* Relative to which location to seek? */
+{
+    Tcl_WideInt wOffset, wResult;
+
+    wOffset = Tcl_LongAsWide((long) offset);
+    wResult = Tcl_Seek(chan, wOffset, mode);
+    return (int) Tcl_WideAsLong(wResult);
+}
+
+static int
+tellOld(
+    Tcl_Channel chan)		/* The channel to return pos for. */
+{
+    Tcl_WideInt wResult = Tcl_Tell(chan);
+
+    return (int) Tcl_WideAsLong(wResult);
+}
+#endif /* !TCL_NO_DEPRECATED */
 
 /*
  * WARNING: The contents of this file is automatically generated by the
@@ -454,22 +571,22 @@ static const TclIntStubs tclIntStubs = {
     TclUpdateReturnInfo, /* 109 */
     TclSockMinimumBuffers, /* 110 */
     Tcl_AddInterpResolvers, /* 111 */
-    Tcl_AppendExportList, /* 112 */
-    Tcl_CreateNamespace, /* 113 */
-    Tcl_DeleteNamespace, /* 114 */
-    Tcl_Export, /* 115 */
-    Tcl_FindCommand, /* 116 */
-    Tcl_FindNamespace, /* 117 */
+    TclAppendExportList, /* 112 */
+    TclCreateNamespace, /* 113 */
+    TclDeleteNamespace, /* 114 */
+    TclExport, /* 115 */
+    TclFindCommand, /* 116 */
+    TclFindNamespace, /* 117 */
     Tcl_GetInterpResolvers, /* 118 */
     Tcl_GetNamespaceResolvers, /* 119 */
     Tcl_FindNamespaceVar, /* 120 */
-    Tcl_ForgetImport, /* 121 */
-    Tcl_GetCommandFromObj, /* 122 */
-    Tcl_GetCommandFullName, /* 123 */
-    Tcl_GetCurrentNamespace, /* 124 */
-    Tcl_GetGlobalNamespace, /* 125 */
+    TclForgetImport, /* 121 */
+    TclGetCommandFromObj, /* 122 */
+    TclGetCommandFullName, /* 123 */
+    TclGetCurrentNamespace_, /* 124 */
+    TclGetGlobalNamespace_, /* 125 */
     Tcl_GetVariableFullName, /* 126 */
-    Tcl_Import, /* 127 */
+    TclImport, /* 127 */
     Tcl_PopCallFrame, /* 128 */
     Tcl_PushCallFrame, /* 129 */
     Tcl_RemoveInterpResolvers, /* 130 */
@@ -520,8 +637,8 @@ static const TclIntStubs tclIntStubs = {
     TclCallVarTraces, /* 175 */
     TclCleanupVar, /* 176 */
     TclVarErrMsg, /* 177 */
-    Tcl_SetStartupScript, /* 178 */
-    Tcl_GetStartupScript, /* 179 */
+    TclSetStartupScript, /* 178 */
+    TclGetStartupScript, /* 179 */
     0, /* 180 */
     0, /* 181 */
     TclpLocaltime, /* 182 */
@@ -788,6 +905,11 @@ const TclTomMathStubs tclTomMathStubs = {
     TclBNInitBignumFromLong, /* 64 */
     TclBNInitBignumFromWideInt, /* 65 */
     TclBNInitBignumFromWideUInt, /* 66 */
+    TclBN_mp_expt_d_ex, /* 67 */
+    TclBN_mp_set_long_long, /* 68 */
+    TclBN_mp_get_long_long, /* 69 */
+    TclBN_mp_set_long, /* 70 */
+    TclBN_mp_get_long, /* 71 */
 };
 
 static const TclStubHooks tclStubHooks = {
@@ -1454,6 +1576,7 @@ const TclStubs tclStubs = {
     Tcl_FindSymbol, /* 628 */
     Tcl_FSUnloadFile, /* 629 */
     Tcl_ZlibStreamSetCompressionDictionary, /* 630 */
+    Tcl_OpenTcpServerEx, /* 631 */
 };
 
 /* !END!: Do not edit above this line. */

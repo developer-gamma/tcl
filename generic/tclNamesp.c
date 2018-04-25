@@ -31,8 +31,8 @@
  * limited to a single interpreter.
  */
 
-typedef struct ThreadSpecificData {
-    long numNsCreated;		/* Count of the number of namespaces created
+typedef struct {
+    unsigned long numNsCreated;	/* Count of the number of namespaces created
 				 * within the thread. This value is used as a
 				 * unique id for each namespace. Cannot be
 				 * per-interp because the nsId is used to
@@ -59,7 +59,7 @@ typedef struct ResolvedNsName {
 				 * the name was resolved. NULL if the name is
 				 * fully qualified and thus the resolution
 				 * does not depend on the context. */
-    int refCount;		/* Reference count: 1 for each nsName object
+    size_t refCount;		/* Reference count: 1 for each nsName object
 				 * that has a pointer to this ResolvedNsName
 				 * structure as its internal rep. This
 				 * structure can be freed when refCount
@@ -402,7 +402,7 @@ Tcl_PopCallFrame(
     }
     if (framePtr->numCompiledLocals > 0) {
 	TclDeleteCompiledLocalVars(iPtr, framePtr);
-	if (--framePtr->localCachePtr->refCount == 0) {
+	if (framePtr->localCachePtr->refCount-- <= 1) {
 	    TclFreeLocalCache(interp, framePtr->localCachePtr);
 	}
 	framePtr->localCachePtr = NULL;
@@ -1323,8 +1323,7 @@ void
 TclNsDecrRefCount(
     Namespace *nsPtr)
 {
-    nsPtr->refCount--;
-    if ((nsPtr->refCount == 0) && (nsPtr->flags & NS_DEAD)) {
+    if ((nsPtr->refCount-- <= 1) && (nsPtr->flags & NS_DEAD)) {
 	NamespaceFree(nsPtr);
     }
 }
@@ -2912,9 +2911,9 @@ GetNamespaceFromObj(
 	resNamePtr = objPtr->internalRep.twoPtrValue.ptr1;
 	nsPtr = resNamePtr->nsPtr;
 	refNsPtr = resNamePtr->refNsPtr;
-	if (!(nsPtr->flags & NS_DYING) && (interp == nsPtr->interp) &&
-		(!refNsPtr || ((interp == refNsPtr->interp) &&
-		(refNsPtr== (Namespace *) Tcl_GetCurrentNamespace(interp))))){
+	if (!(nsPtr->flags & NS_DYING) && (interp == nsPtr->interp)
+		&& (!refNsPtr || (refNsPtr ==
+		(Namespace *) TclGetCurrentNamespace(interp)))) {
 	    *nsPtrPtr = (Tcl_Namespace *) nsPtr;
 	    return TCL_OK;
 	}
@@ -4697,8 +4696,7 @@ FreeNsNameInternalRep(
      * references, free it up.
      */
 
-    resNamePtr->refCount--;
-    if (resNamePtr->refCount == 0) {
+    if (resNamePtr->refCount-- <= 1) {
 	/*
 	 * Decrement the reference count for the cached namespace. If the
 	 * namespace is dead, and there are no more references to it, free
@@ -4808,7 +4806,7 @@ SetNsNameFromAny(
     if ((name[0] == ':') && (name[1] == ':')) {
 	resNamePtr->refNsPtr = NULL;
     } else {
-	resNamePtr->refNsPtr = (Namespace *) Tcl_GetCurrentNamespace(interp);
+	resNamePtr->refNsPtr = (Namespace *) TclGetCurrentNamespace(interp);
     }
     resNamePtr->refCount = 1;
     TclFreeIntRep(objPtr);

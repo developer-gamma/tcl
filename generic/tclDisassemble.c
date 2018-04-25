@@ -191,7 +191,7 @@ TclPrintObject(
     char *bytes;
     int length;
 
-    bytes = Tcl_GetStringFromObj(objPtr, &length);
+    bytes = TclGetStringFromObj(objPtr, &length);
     TclPrintSource(outFile, bytes, TclMin(length, maxChars));
 }
 
@@ -252,10 +252,9 @@ DisassembleByteCodeObj(
     int codeOffset, codeLen, srcOffset, srcLen, numCmds, delta, i, line;
     Interp *iPtr = (Interp *) *codePtr->interpHandle;
     Tcl_Obj *bufferObj, *fileObj;
-    char ptrBuf1[20], ptrBuf2[20];
 
     TclNewObj(bufferObj);
-    if (codePtr->refCount <= 0) {
+    if (!codePtr->refCount) {
 	return bufferObj;	/* Already freed. */
     }
 
@@ -267,11 +266,9 @@ DisassembleByteCodeObj(
      * Print header lines describing the ByteCode.
      */
 
-    sprintf(ptrBuf1, "%p", codePtr);
-    sprintf(ptrBuf2, "%p", iPtr);
     Tcl_AppendPrintfToObj(bufferObj,
-	    "ByteCode 0x%s, refCt %u, epoch %u, interp 0x%s (epoch %u)\n",
-	    ptrBuf1, codePtr->refCount, codePtr->compileEpoch, ptrBuf2,
+	    "ByteCode %p, refCt %u, epoch %u, interp %p (epoch %u)\n",
+	    codePtr, codePtr->refCount, codePtr->compileEpoch, iPtr,
 	    iPtr->compileEpoch);
     Tcl_AppendToObj(bufferObj, "  Source ", -1);
     PrintSourceToObj(bufferObj, codePtr->source,
@@ -314,10 +311,9 @@ DisassembleByteCodeObj(
 	Proc *procPtr = codePtr->procPtr;
 	int numCompiledLocals = procPtr->numCompiledLocals;
 
-	sprintf(ptrBuf1, "%p", procPtr);
 	Tcl_AppendPrintfToObj(bufferObj,
-		"  Proc 0x%s, refCt %d, args %d, compiled locals %d\n",
-		ptrBuf1, procPtr->refCount, procPtr->numArgs,
+		"  Proc %p, refCt %u, args %d, compiled locals %d\n",
+		procPtr, procPtr->refCount, procPtr->numArgs,
 		numCompiledLocals);
 	if (numCompiledLocals > 0) {
 	    CompiledLocal *localPtr = procPtr->firstLocalPtr;
@@ -648,7 +644,7 @@ FormatInstruction(
 	int length;
 
 	Tcl_AppendToObj(bufferObj, "\t# ", -1);
-	bytes = Tcl_GetStringFromObj(codePtr->objArrayPtr[opnd], &length);
+	bytes = TclGetStringFromObj(codePtr->objArrayPtr[opnd], &length);
 	PrintSourceToObj(bufferObj, bytes, TclMin(length, 40));
     } else if (suffixBuffer[0]) {
 	Tcl_AppendPrintfToObj(bufferObj, "\t# %s", suffixBuffer);
@@ -801,7 +797,7 @@ TclNewInstNameObj(
     Tcl_Obj *objPtr = Tcl_NewObj();
 
     objPtr->typePtr = &tclInstNameType;
-    objPtr->internalRep.longValue = (long) inst;
+    objPtr->internalRep.wideValue = (long) inst;
     objPtr->bytes = NULL;
 
     return objPtr;
@@ -821,17 +817,17 @@ static void
 UpdateStringOfInstName(
     Tcl_Obj *objPtr)
 {
-    int inst = objPtr->internalRep.longValue;
-    char *s, buf[20];
-    int len;
+    size_t len, inst = (size_t)objPtr->internalRep.wideValue;
+    char *s, buf[TCL_INTEGER_SPACE + 5];
 
-    if ((inst < 0) || (inst > LAST_INST_OPCODE)) {
-        sprintf(buf, "inst_%d", inst);
+    if (inst > LAST_INST_OPCODE) {
+        sprintf(buf, "inst_%" TCL_Z_MODIFIER "d", inst);
         s = buf;
     } else {
-        s = (char *) tclInstructionTable[objPtr->internalRep.longValue].name;
+        s = (char *) tclInstructionTable[inst].name;
     }
     len = strlen(s);
+    /* assert (len < UINT_MAX) */
     objPtr->bytes = ckalloc(len + 1);
     memcpy(objPtr->bytes, s, len + 1);
     objPtr->length = len;

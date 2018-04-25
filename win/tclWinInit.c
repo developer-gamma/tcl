@@ -84,14 +84,9 @@ TclWinProcs tclWinProcs;
 
 /*
  * The following arrays contain the human readable strings for the Windows
- * platform and processor values.
+ * processor values.
  */
 
-
-#define NUMPLATFORMS 4
-static const char *const platforms[NUMPLATFORMS] = {
-    "Win32s", "Windows 95", "Windows NT", "Windows CE"
-};
 
 #define NUMPROCESSORS 11
 static const char *const processors[NUMPROCESSORS] = {
@@ -187,7 +182,7 @@ TclpInitPlatform(void)
 void
 TclpInitLibraryPath(
     char **valuePtr,
-    int *lengthPtr,
+    unsigned int *lengthPtr,
     Tcl_Encoding *encodingPtr)
 {
 #define LIBRARY_SIZE	    64
@@ -229,9 +224,10 @@ TclpInitLibraryPath(
 	    TclGetProcessGlobalValue(&sourceLibraryDir));
 
     *encodingPtr = NULL;
-    bytes = Tcl_GetStringFromObj(pathPtr, lengthPtr);
-    *valuePtr = ckalloc((*lengthPtr) + 1);
-    memcpy(*valuePtr, bytes, (size_t)(*lengthPtr)+1);
+    bytes = TclGetString(pathPtr);
+    *lengthPtr = pathPtr->length;
+    *valuePtr = ckalloc(*lengthPtr + 1);
+    memcpy(*valuePtr, bytes, *lengthPtr + 1);
     Tcl_DecrRefCount(pathPtr);
 }
 
@@ -349,7 +345,7 @@ AppendEnvironment(
 static void
 InitializeDefaultLibraryDir(
     char **valuePtr,
-    int *lengthPtr,
+    unsigned int *lengthPtr,
     Tcl_Encoding *encodingPtr)
 {
     HMODULE hModule = TclWinGetTclInstance();
@@ -376,7 +372,7 @@ InitializeDefaultLibraryDir(
     *lengthPtr = strlen(name);
     *valuePtr = ckalloc(*lengthPtr + 1);
     *encodingPtr = NULL;
-    memcpy(*valuePtr, name, (size_t) *lengthPtr + 1);
+    memcpy(*valuePtr, name, *lengthPtr + 1);
 }
 
 /*
@@ -400,7 +396,7 @@ InitializeDefaultLibraryDir(
 static void
 InitializeSourceLibraryDir(
     char **valuePtr,
-    int *lengthPtr,
+    unsigned int *lengthPtr,
     Tcl_Encoding *encodingPtr)
 {
     HMODULE hModule = TclWinGetTclInstance();
@@ -427,7 +423,7 @@ InitializeSourceLibraryDir(
     *lengthPtr = strlen(name);
     *valuePtr = ckalloc(*lengthPtr + 1);
     *encodingPtr = NULL;
-    memcpy(*valuePtr, name, (size_t) *lengthPtr + 1);
+    memcpy(*valuePtr, name, *lengthPtr + 1);
 }
 
 /*
@@ -491,16 +487,9 @@ TclpSetInitialEncodings(void)
 {
     Tcl_DString encodingName;
 
-    TclpSetInterfaces();
     Tcl_SetSystemEncoding(NULL,
 	    Tcl_GetEncodingNameFromEnvironment(&encodingName));
     Tcl_DStringFree(&encodingName);
-}
-
-void TclWinSetInterfaces(
-    int dummy)			/* Not used. */
-{
-    TclpSetInterfaces();
 }
 
 const char *
@@ -568,10 +557,7 @@ TclpSetVariables(
 
     Tcl_SetVar2(interp, "tcl_platform", "platform", "windows",
 	    TCL_GLOBAL_ONLY);
-    if (osInfo.dwPlatformId < NUMPLATFORMS) {
-	Tcl_SetVar2(interp, "tcl_platform", "os",
-		platforms[osInfo.dwPlatformId], TCL_GLOBAL_ONLY);
-    }
+    Tcl_SetVar2(interp, "tcl_platform", "os", "Windows NT", TCL_GLOBAL_ONLY);
     wsprintfA(buffer, "%d.%d", osInfo.dwMajorVersion, osInfo.dwMinorVersion);
     Tcl_SetVar2(interp, "tcl_platform", "osVersion", buffer, TCL_GLOBAL_ONLY);
     if (sys.oemId.wProcessorArchitecture < NUMPROCESSORS) {

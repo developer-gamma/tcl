@@ -37,7 +37,7 @@ typedef struct BgError {
  * pending background errors for the interpreter.
  */
 
-typedef struct ErrAssocData {
+typedef struct {
     Tcl_Interp *interp;		/* Interpreter in which error occurred. */
     Tcl_Obj *cmdPrefix;		/* First word(s) of the handler command */
     BgError *firstBgPtr;	/* First in list of all background errors
@@ -1043,6 +1043,9 @@ TclInitSubsystems(void)
 #if USE_TCLALLOC
 	    TclInitAlloc();		/* Process wide mutex init */
 #endif
+#if defined(TCL_THREADS) && defined(USE_THREAD_ALLOC)
+	    TclInitThreadAlloc();	/* Setup thread allocator caches */
+#endif
 #ifdef TCL_MEM_DEBUG
 	    TclInitDbCkalloc();		/* Process wide mutex init */
 #endif
@@ -1054,7 +1057,6 @@ TclInitSubsystems(void)
 					 * mutexes. */
 	    TclInitIOSubsystem();	/* Inits a tsd key (noop). */
 	    TclInitEncodingSubsystem();	/* Process wide encoding init. */
-	    TclpSetInterfaces();
 	    TclInitNamespaceSubsystem();/* Register ns obj type (mutexed). */
 	    subsystemsInitialized = 1;
 	}
